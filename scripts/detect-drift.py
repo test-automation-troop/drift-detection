@@ -52,6 +52,6 @@ else:
 
             for field, old, new in changes:
                 print(f"Changed field: {field}")
-                print(f"Azure/current value    : {old}")
-                print(f"Terraform desired value: {new}")
+                print(f"Old value    : {old}")
+                print(f"New value: {new}")
                 print()
