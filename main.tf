@@ -92,7 +92,7 @@ resource "azurerm_network_interface_security_group_association" "ni-sga" {
 
 # Create storage account for boot diagnostics
 resource "azurerm_storage_account" "boot_diagnostics" {
-  name                     = "bootdiagnosticsvmstorage"
+  name                     = "bootdiagvmstorage5603"
   location                 = data.azurerm_resource_group.rg.location
   resource_group_name      = data.azurerm_resource_group.rg.name
   account_tier             = "Standard"

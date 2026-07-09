@@ -1,6 +1,9 @@
 .terraform/
 *.lock.hcl
-reports/
+reports/plan.json
 
 *.tfplan
 tfplan
+
+key-vault/
+storage-acc/
