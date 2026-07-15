@@ -4,8 +4,8 @@ reports/
 
 *.tfplan
 tfplan
-
-key-vault/
-storage-acc/
+*.tfvars
+*.tfstate
+*.tfstate.backup
 
 .env
