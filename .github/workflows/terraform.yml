@@ -31,7 +31,9 @@ jobs:
 
       - name: Export Plan JSON
         working-directory: vm
-        run: terraform show -json tfplan > ../reports/plan.json
+        shell: pwsh
+        run: |
+            terraform show -json tfplan | Out-File "$env:GITHUB_WORKSPACE\reports\plan.json"
 
       - name: Setup Python
         uses: actions/setup-python@v5
