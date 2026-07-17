@@ -1,0 +1,47 @@
+name: Drift Detection
+
+on:
+  schedule:
+    - cron: '30 2 * * *'   # 8:00 AM IST
+
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+jobs:
+  drift-detection:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: vm
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: vm
+        run: terraform plan -out=tfplan
+
+      - name: Export Plan JSON
+        working-directory: vm
+        run: terraform show -json tfplan > ../reports/plan.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Detect Drift
+        env:
+          ACCESS_TOKEN_STORAGE_ACC: ${{ secrets.ACCESS_TOKEN_STORAGE_ACC }}
+        run: python scripts/detect-drift.py
