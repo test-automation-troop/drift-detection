@@ -21,6 +21,11 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Verify Azure Login
+        shell: pwsh
+        run: |
+            az account show
+
       - name: Terraform Init
         working-directory: vm
         run: terraform init
