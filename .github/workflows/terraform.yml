@@ -33,8 +33,8 @@ jobs:
         working-directory: vm
         shell: pwsh
         run: |
-            terraform show -json tfplan | Out-File "$env:GITHUB_WORKSPACE\reports\plan.json"
-
+            terraform show -json tfplan > "$env:GITHUB_WORKSPACE\reports\plan.json"
+            
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
