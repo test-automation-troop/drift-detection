@@ -1,8 +1,12 @@
 import json
 import os
+import base64
+import hashlib
+import hmac
+import requests
+
 from dotenv import load_dotenv
-from datetime import datetime, UTC
-from azure.storage.blob import BlobServiceClient
+from email.utils import formatdate
 
 # Load Terraform plan
 with open("reports/plan.json", "r") as f:
@@ -40,6 +44,105 @@ def find_changes(before, after, path=""):
     return changes
 
 
+def build_signature(
+    workspace_id,
+    shared_key,
+    date,
+    content_length,
+    method,
+    content_type,
+    resource,
+):
+    x_headers = f"x-ms-date:{date}"
+
+    string_to_hash = (
+        f"{method}\n"
+        f"{content_length}\n"
+        f"{content_type}\n"
+        f"{x_headers}\n"
+        f"{resource}"
+    )
+
+    bytes_to_hash = string_to_hash.encode("utf-8")
+    decoded_key = base64.b64decode(shared_key)
+
+    encoded_hash = base64.b64encode(
+        hmac.new(
+            decoded_key,
+            bytes_to_hash,
+            digestmod=hashlib.sha256,
+        ).digest()
+    ).decode("utf-8")
+
+    return f"SharedKey {workspace_id}:{encoded_hash}"
+
+
+def send_to_log_analytics(data):
+    workspace_id = os.getenv("LOG_ANALYTICS_WORKSPACE_ID")
+    shared_key = os.getenv("LOG_ANALYTICS_SHARED_KEY")
+
+    if not workspace_id:
+        raise ValueError(
+            "LOG_ANALYTICS_WORKSPACE_ID environment variable not found"
+        )
+
+    if not shared_key:
+        raise ValueError(
+            "LOG_ANALYTICS_SHARED_KEY environment variable not found"
+        )
+
+    log_type = "TerraformDrift"
+
+    body = json.dumps(data)
+
+    method = "POST"
+    content_type = "application/json"
+    resource = "/api/logs"
+
+    rfc1123date = formatdate(usegmt=True)
+
+    signature = build_signature(
+        workspace_id,
+        shared_key,
+        rfc1123date,
+        len(body),
+        method,
+        content_type,
+        resource,
+    )
+
+    uri = (
+        f"https://{workspace_id}.ods.opinsights.azure.com"
+        f"{resource}?api-version=2016-04-01"
+    )
+
+    headers = {
+        "Content-Type": content_type,
+        "Authorization": signature,
+        "Log-Type": log_type,
+        "x-ms-date": rfc1123date,
+    }
+
+    print("Payload:")
+    print(json.dumps(data, indent=2))
+
+    print("Records to send:", len(data))
+
+    response = requests.post(
+        uri,
+        data=body,
+        headers=headers,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    print(
+        f"Successfully sent drift report to Log Analytics. "
+        f"Status Code: {response.status_code}"
+    )
+
+
 # Detect drift
 report = []
 
@@ -68,44 +171,8 @@ with open(report_file, "w") as f:
 
 print(f"Drift detected. Report generated: {report_file}")
 
-# -------------------------------
-# Upload report to Blob Storage
-# -------------------------------
-
+# Load environment variables
 load_dotenv()
-connection_string = os.getenv(
-    "ACCESS_TOKEN_STORAGE_ACC"
-)
 
-if not connection_string:
-    raise ValueError(
-        "ACCESS_TOKEN_STORAGE_ACC environment variable not found"
-    )
-
-container_name = "drift-reports"
-
-blob_service_client = BlobServiceClient.from_connection_string(
-    connection_string
-)
-
-blob_name = (
-    f"drift_report_"
-    f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
-)
-
-blob_client = blob_service_client.get_blob_client(
-    container=container_name,
-    blob=blob_name
-)
-
-with open(report_file, "rb") as data:
-    blob_client.upload_blob(
-        data,
-        overwrite=False
-    )
-
-print(
-    f"Report uploaded successfully to "
-    f"container '{container_name}' "
-    f"as '{blob_name}'"
-)
+# Send to Log Analytics
+send_to_log_analytics(report)
