@@ -15,6 +15,9 @@ resource_changes = plan.get("resource_changes", [])
 
 repository = os.getenv("GITHUB_REPOSITORY", "unknown")
 
+# Fallback environment if tag is missing
+default_environment = os.getenv("ENVIRONMENT", "unknown")
+
 payload = []
 
 summary = {
@@ -36,10 +39,27 @@ for resource in resource_changes:
     if "delete" in actions:
         summary["delete"] += 1
 
+    after = resource.get("change", {}).get("after", {}) or {}
+
+    # Fetch tags
+    tags = after.get("tags", {}) or after.get("tags_all", {}) or {}
+
+    # Environment from tags
+    environment = (
+        tags.get("Environment")
+        or tags.get("environment")
+        or default_environment
+    )
+
+    # Resource Group from Terraform plan
+    resource_group = after.get("resource_group_name", "unknown")
+
     payload.append({
         "Repository": repository,
         "ResourceType": resource.get("type"),
         "ResourceName": resource.get("address"),
+        "ResourceGroup": resource_group,
+        "Environment": environment,
         "Action": ",".join(actions),
         "DetectedTime": datetime.now(timezone.utc).isoformat()
     })
