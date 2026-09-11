@@ -24,6 +24,10 @@ payload_file = os.path.join(
 with open(payload_file, "r", encoding="utf-8") as f:
     payload = json.load(f)
 
+if not payload:
+    print("No drift detected. Nothing to send.")
+    exit(0)
+
 body = json.dumps(payload)
 body_bytes = body.encode("utf-8")
 
@@ -31,9 +35,11 @@ rfc1123date = datetime.now(timezone.utc).strftime(
     "%a, %d %b %Y %H:%M:%S GMT"
 )
 
+content_length = len(body_bytes)
+
 string_to_hash = (
     f"POST\n"
-    f"{len(body_bytes)}\n"
+    f"{content_length}\n"
     f"application/json\n"
     f"x-ms-date:{rfc1123date}\n"
     f"/api/logs"
@@ -47,13 +53,14 @@ signature = base64.b64encode(
         string_to_hash.encode("utf-8"),
         hashlib.sha256
     ).digest()
-).decode()
+).decode("utf-8")
 
 headers = {
     "Content-Type": "application/json",
     "Authorization": f"SharedKey {workspace_id}:{signature}",
     "Log-Type": "TerraformDrift",
-    "x-ms-date": rfc1123date
+    "x-ms-date": rfc1123date,
+    "time-generated-field": "DetectedTime"
 }
 
 uri = (
@@ -64,7 +71,8 @@ uri = (
 response = requests.post(
     uri,
     data=body_bytes,
-    headers=headers
+    headers=headers,
+    timeout=30
 )
 
 print(f"Status Code: {response.status_code}")
@@ -73,4 +81,4 @@ if response.status_code not in [200, 202]:
     print(response.text)
     raise Exception("Failed to send logs")
 
-print("Logs sent successfully.")
+print(f"Successfully sent {len(payload)} drift records to Log Analytics")
